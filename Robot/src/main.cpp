@@ -107,7 +107,7 @@ ISR(TIMER1_COMPA_vect){
   // Commande du PWM
   analogWrite(M2_pwm, commande);
 
-  tick_M1=0;
+  tick_M2=0;
 
 
   sei();
