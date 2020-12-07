@@ -25,12 +25,13 @@
 #define trig_b 12
 #define echo_b 13
 
-const float vson = 340.0/1000; // vitesse du son
+const float vitesse_son = 340.0/1000; // vitesse du son
 
 //PID
 float erreur;
 float vitesse;
-float commande;
+float commande_M1;
+float commande_M2;
 float erreur_precedente = 2;
 float somme_erreur = 0;
 float current_speed;
@@ -43,6 +44,9 @@ double rep_capteur;
 volatile int tick_M1 = 0; // compte le nombre d'impulsions
 volatile int tick_M2 = 0; // compte le nombre d'impulsions
 
+// Rotation
+int nb_tour;
+bool angle_dep;
 
 // incrémentation dès qu'il y a un signal
 void comptage_M1(){
@@ -53,65 +57,231 @@ void comptage_M2(){
  tick_M2++;
 }
 
+// Contourne l'obstacle 
+void rotation(){
+  // On arrête les moteurs 
+  analogWrite(M1_pwm, 0);
+  analogWrite(M2_pwm, 0);
+
+  // Cas où l'obstacle est en face ou sur la droite 
+  if (distance_A>=distance_B){
+
+    // On tourne jusqu'à ce qu'on ne voit plus l'obstacle 
+    while (distance_A<500 && distance_B<500){
+
+      angle_dep=false; // Indique que l'on a changé d'angle
+      analogWrite(M1_pwm,200);
+      delay(500);
+      analogWrite(M1_pwm,0);
+      nb_tour++; // Nombre de fois où on exécute la boucle
+
+      /**** CAPTEUR A ****/
+      // Envoi des ultrasons
+      digitalWrite(trig_a, HIGH) ;
+      delayMicroseconds (10) ;  
+      digitalWrite(trig_a, LOW) ;
+
+      //Reception des ultrasons
+      temps = pulseIn(echo_a, HIGH, 10000);  
+      distance_A = temps / 2.0 * vitesse_son ; // distance en mm
+      /**** CAPTEUR B ****/
+      // Envoi des ultrasons
+      digitalWrite(trig_b, HIGH) ;
+      delayMicroseconds (10) ;  
+      digitalWrite(trig_b, LOW) ;
+
+      //Reception des ultrasons
+      temps = pulseIn(echo_b, HIGH, 10000);  
+      distance_B = temps / 2.0 * vitesse_son ; // distance en mm
+    
+
+    } 
+
+    // On avance puis on revient à l'angle initial jusqu'à ce qu'il n'y ait plus 
+    // d'obstacle lorsque qu'on se trouve à l'angle initial
+    while (angle_dep!=true){
+
+      analogWrite(M1_pwm, 200);
+      analogWrite(M2_pwm, 200);
+      delay(1000);
+      analogWrite(M1_pwm, 0);
+      analogWrite(M2_pwm, 0);
+      for (int i=0; i<nb_tour;i++){
+          analogWrite(M2_pwm,200);
+          delay(500);
+          analogWrite(M2_pwm,0);          
+      } 
+
+      /**** CAPTEUR A ****/
+      // Envoi des ultrasons
+      digitalWrite(trig_a, HIGH) ;
+      delayMicroseconds (10) ;  
+      digitalWrite(trig_a, LOW) ;
+
+      //Reception des ultrasons
+      temps = pulseIn(echo_a, HIGH, 10000);  
+      distance_A = temps / 2.0 * vitesse_son ; // distance en mm
+      /**** CAPTEUR B ****/
+      // Envoi des ultrasons
+      digitalWrite(trig_b, HIGH) ;
+      delayMicroseconds (10) ;  
+      digitalWrite(trig_b, LOW) ;
+
+      //Reception des ultrasons
+      temps = pulseIn(echo_b, HIGH, 10000);  
+      distance_B = temps / 2.0 * vitesse_son ; // distance en mm
+
+      if (distance_A>500 && distance_B>500){
+        angle_dep=true;
+      }
+    
+    }
+    
+
+  } else {
+
+      // Fonctionnement analogue, l'obstacle se situe ici à gauche
+      while (distance_A<500 && distance_B<500){
+        angle_dep=false;
+        analogWrite(M2_pwm,200);
+        delay(500);
+        analogWrite(M2_pwm,0);
+        nb_tour++;
+        /**** CAPTEUR A ****/
+        // Envoi des ultrasons
+        digitalWrite(trig_a, HIGH) ;
+        delayMicroseconds (10) ;  
+        digitalWrite(trig_a, LOW) ;
+
+        //Reception des ultrasons
+        temps = pulseIn(echo_a, HIGH, 10000);  
+        distance_A = temps / 2.0 * vitesse_son ; // distance en mm
+        /**** CAPTEUR B ****/
+        // Envoi des ultrasons
+        digitalWrite(trig_b, HIGH) ;
+        delayMicroseconds (10) ;  
+        digitalWrite(trig_b, LOW) ;
+
+        //Reception des ultrasons
+        temps = pulseIn(echo_b, HIGH, 10000);  
+        distance_B = temps / 2.0 * vitesse_son ; // distance en mm
+      
+
+      } 
+
+      while (angle_dep!=true){
+
+        analogWrite(M1_pwm, 200);
+        analogWrite(M2_pwm, 200);
+        delay(1000);
+        analogWrite(M1_pwm, 0);
+        analogWrite(M2_pwm, 0);
+        for (int i=0; i<nb_tour;i++){
+            analogWrite(M1_pwm,200);
+            delay(500);
+            analogWrite(M1_pwm,0);          
+        } 
+
+        /**** CAPTEUR A ****/
+        // Envoi des ultrasons
+        digitalWrite(trig_a, HIGH) ;
+        delayMicroseconds (10) ;  
+        digitalWrite(trig_a, LOW) ;
+
+        //Reception des ultrasons
+        temps = pulseIn(echo_a, HIGH, 10000);  
+        distance_A = temps / 2.0 * vitesse_son ; // distance en mm
+        /**** CAPTEUR B ****/
+        // Envoi des ultrasons
+        digitalWrite(trig_b, HIGH) ;
+        delayMicroseconds (10) ;  
+        digitalWrite(trig_b, LOW) ;
+
+        //Reception des ultrasons
+        temps = pulseIn(echo_b, HIGH, 10000);  
+        distance_B = temps / 2.0 * vitesse_son ; // distance en mm
+
+        if (distance_A>500 && distance_B>500){
+          angle_dep=true;
+        }
+      
+      }
+      
+
+  
+  }
+
+
+}
+
 ISR(TIMER1_COMPA_vect){
 
   cli();
 
-  /************ MOTEUR 1*******************/
+  // Un obstacle est très proche
+  // On s'arrête et on contourne l'obstacle
+  if (rep_capteur==0){
+    rotation();
 
-  // Calcul de la vitesse du moteur
-  current_speed = tick_M1/(r_reduc*cad_ech*impulsion);
+  // L'obstacle est loin ou inexistant, on continue d'avancer  
+  } else {
 
-  // Calcul de l'erreur
-  erreur = rep_capteur-current_speed; 
-  somme_erreur+=erreur;
+    /************ MOTEUR 1*******************/
 
-  // Calcul de la commande
-  commande = 0.05714285714*erreur 
-  + 0.45454545454*somme_erreur 
-  + 0*(erreur-erreur_precedente); // kp = 2/35 ; ki = 15/33 ; kd = 0
-  
-  erreur_precedente = erreur;
+    // Calcul de la vitesse du moteur
+    current_speed = tick_M1/(r_reduc*cad_ech*impulsion);
 
-  // Conversion de la commande
-  commande = (int)(255*commande/5);
-  commande = commande>255 ? 255 : commande;
-  commande = commande<0 ? 0 : commande;
+    // Calcul de l'erreur
+    erreur = rep_capteur-current_speed; 
+    somme_erreur+=erreur;
 
-  // Commande du PWM
-  analogWrite(M1_pwm, commande);
+    // Calcul de la commande
+    commande_M1 = 0.05714285714*erreur 
+    + 0.45454545454*somme_erreur 
+    + 0*(erreur-erreur_precedente); // kp = 2/35 ; ki = 15/33 ; kd = 0
+    
+    erreur_precedente = erreur;
 
-  tick_M1=0;
+    // Conversion de la commande
+    commande_M1 = (int)(255*commande_M1/5);
+    commande_M1 = commande_M1>255 ? 255 : commande_M1;
+    commande_M1 = commande_M1<0 ? 0 : commande_M1;  
 
-  /************ MOTEUR 2*******************/
+    tick_M1=0;
 
-  // Calcul de la vitesse du moteur
-  current_speed = tick_M2/(r_reduc*cad_ech*impulsion);
+    /************ MOTEUR 2*******************/
 
-  // Calcul de l'erreur
-  erreur = rep_capteur-current_speed; 
-  somme_erreur+=erreur;
+    // Calcul de la vitesse du moteur
+    current_speed = tick_M2/(r_reduc*cad_ech*impulsion);
 
-  // Calcul de la commande
-  commande = 0.05714285714*erreur 
-  + 0.45454545454*somme_erreur 
-  + 0*(erreur-erreur_precedente); // kp = 2/35 ; ki = 15/33 ; kd = 0
-  
-  erreur_precedente = erreur;
+    // Calcul de l'erreur
+    erreur = rep_capteur-current_speed; 
+    somme_erreur+=erreur;
 
-  // Conversion de la commande
-  commande = (int)(255*commande/5);
-  commande = commande>255 ? 255 : commande;
-  commande = commande<0 ? 0 : commande;
+    // Calcul de la commande
+    commande_M2 = 0.05714285714*erreur 
+    + 0.45454545454*somme_erreur 
+    + 0*(erreur-erreur_precedente); // kp = 2/35 ; ki = 15/33 ; kd = 0
+    
+    erreur_precedente = erreur;
 
-  // Commande du PWM
-  analogWrite(M2_pwm, commande);
+    // Conversion de la commande
+    commande_M2 = (int)(255*commande_M2/5);
+    commande_M2 = commande_M2>255 ? 255 : commande_M2;
+    commande_M2 = commande_M2<0 ? 0 : commande_M2;
 
-  tick_M2=0;
+    // Commande des moteurs 
+    analogWrite(M1_pwm, commande_M1);
+    analogWrite(M2_pwm, commande_M2);
 
+    tick_M2=0;
+
+
+    
+  }
 
   sei();
-  
+
 }
 
 
@@ -176,7 +346,7 @@ void loop() {
 
       //Reception des ultrasons
       temps = pulseIn(echo_a, HIGH, 10000);  
-      distance_A = temps / 2.0 * vson ; // distance en mm
+      distance_A = temps / 2.0 * vitesse_son ; // distance en mm
       
       /**** CAPTEUR B ****/
       // Envoi des ultrasons
@@ -186,11 +356,11 @@ void loop() {
 
       //Reception des ultrasons
       temps = pulseIn(echo_b, HIGH, 10000);  
-      distance_B = temps / 2.0 * vson ; // distance en mm
+      distance_B = temps / 2.0 * vitesse_son ; // distance en mm
 
-      // Affectation d'une consigne
+      // Affectation d'une consigne selon la distance de l'obstacle
       rep_capteur=consigne;
-      rep_capteur = (distance_A < 500 || distance_B< 500 ) ? 1.9 : rep_capteur;
+      rep_capteur = (distance_A < 500 || distance_B < 500 ) ? 1.9 : rep_capteur;
       rep_capteur = (distance_A < 400 || distance_B < 400)  ? 1.85 : rep_capteur;
       rep_capteur = (distance_A < 300 || distance_B < 300)  ? 1.75 : rep_capteur;
       rep_capteur = (distance_A < 200 || distance_B < 200)  ? 1.7 : rep_capteur;
